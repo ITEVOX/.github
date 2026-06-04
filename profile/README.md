@@ -10,6 +10,10 @@
 [![PROVISIONIX](https://img.shields.io/badge/PROVISIONIX-live-E5484D?style=for-the-badge)](https://provisionix.io)
 [![Programs](https://img.shields.io/badge/Programs%20%26%20Partnerships-F5A623?style=for-the-badge&logoColor=0C0A08)](https://itevox.tech/programas)
 
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/itevox)
+[![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/itevox)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/itevox)
+
 **[Español](#español) · [English](#english) · [Português](#português)**
 
 </div>
