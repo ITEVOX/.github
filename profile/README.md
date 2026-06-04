@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/itevox.tech-0C0A08?style=for-the-badge&logo=google-chrome&logoColor=F5A623)](https://itevox.tech)
 [![PROVISIONIX](https://img.shields.io/badge/PROVISIONIX-live-E5484D?style=for-the-badge)](https://provisionix.io)
-[![Programs](https://img.shields.io/badge/Programs%20%26%20Partnerships-F5A623?style=for-the-badge&logoColor=0C0A08)](https://itevox.tech/programas)
+[![Design Partner](https://img.shields.io/badge/Design%20Partner-F5A623?style=for-the-badge&logoColor=0C0A08)](https://itevox.tech/design-partner)
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/itevox)
 [![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/itevox)
@@ -53,7 +53,7 @@ código y experiencia certificada en cloud/IaC.
 ### Hablemos
 
 - 🌐 **Sitio:** [itevox.tech](https://itevox.tech)
-- 🤝 **Programas y alianzas:** [itevox.tech/programas](https://itevox.tech/programas)
+- 🤝 **Programa Design Partner:** [itevox.tech/design-partner](https://itevox.tech/design-partner)
 - ✉️ **Contacto:** [info@itevox.tech](mailto:info@itevox.tech)
 
 ---
@@ -90,8 +90,8 @@ and certified cloud/IaC experience.
 
 ### Get in touch
 
-- 🌐 **Website:** [itevox.tech](https://itevox.tech)
-- 🤝 **Programs & partnerships:** [itevox.tech/programas](https://itevox.tech/programas)
+- 🌐 **Website:** [itevox.tech/en](https://itevox.tech/en)
+- 🤝 **Design Partner Program:** [itevox.tech/en/design-partner](https://itevox.tech/en/design-partner)
 - ✉️ **Contact:** [info@itevox.tech](mailto:info@itevox.tech)
 
 ---
@@ -128,8 +128,8 @@ código e experiência certificada em cloud/IaC.
 
 ### Fale com a gente
 
-- 🌐 **Site:** [itevox.tech](https://itevox.tech)
-- 🤝 **Programas e alianças:** [itevox.tech/programas](https://itevox.tech/programas)
+- 🌐 **Site:** [itevox.tech/pt](https://itevox.tech/pt)
+- 🤝 **Programa Design Partner:** [itevox.tech/pt/design-partner](https://itevox.tech/pt/design-partner)
 - ✉️ **Contato:** [info@itevox.tech](mailto:info@itevox.tech)
 
 ---
