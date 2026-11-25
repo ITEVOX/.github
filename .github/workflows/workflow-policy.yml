@@ -122,7 +122,7 @@ jobs:
                                   labels += as_labels(extra.get(m.group(1)))
                       continue
                   m = re.search(r'inputs\.([\w-]+)', label)
-                  if m and '${{' in label:
+                  if m and ('$' + '{{') in label:  # literal split: GitHub would parse it as an expression
                       labels += as_labels((inputs.get(m.group(1)) or {}).get('default'))
                       continue
                   labels.append(label)
