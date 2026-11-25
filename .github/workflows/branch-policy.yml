@@ -1,0 +1,23 @@
+name: Branch Policy
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions: {}
+
+jobs:
+  branch-policy:
+    name: Branch Policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a PR from this repository's develop
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [[ "$HEAD_REF" != develop || "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            echo '::error::Only develop from this repository may target main.'
+            exit 1
+          fi
