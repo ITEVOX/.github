@@ -39,24 +39,46 @@ jobs:
     container:
       image: ghcr.io/itevox/ci-python:3.14@sha256:05b5c9075bdc1056907249f1e0893c777a1338f7532083b7eb60846147ddb3fe
     steps:
-      - run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+      - run: git config --system --add safe.directory '*'
+      # The PR's content is untrusted data: only its workflow files are checked out, into a
+      # subdirectory, and nothing is ever executed from there (no uv/pip config, no imports).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          path: pr
           persist-credentials: false
-          sparse-checkout: .github
+          sparse-checkout: .github/workflows/
+          sparse-checkout-cone-mode: false
+      # The default branch's copy, to compare files that keep a default-branch trigger.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: default
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/workflows/
+          sparse-checkout-cone-mode: false
+      - name: Install PyYAML (hash-pinned, outside the checkout)
+        working-directory: ${{ runner.temp }}
+        run: |
+          printf '%s\n' 'pyyaml==6.0.3 \' \
+            '  --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5 \' \
+            '  --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f' > req.txt
+          uv pip install --quiet --system --no-config --require-hashes --index-url https://pypi.org/simple -r req.txt
       - name: Check workflows
+        working-directory: ${{ runner.temp }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          PR_DIR: ${{ github.workspace }}/pr
+          DEFAULT_DIR: ${{ github.workspace }}/default
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          uv run --quiet --no-project --with 'pyyaml==6.0.3' python - <<'PY'
-          import glob, json, os, re, sys, urllib.request
+          python -I - <<'PY'
+          import glob, json, os, re, sys
           import yaml
 
           HOSTED = re.compile(r'^(ubuntu|windows|macos)(-|$)', re.I)
           MARK = 'workflow-policy: default-branch-trigger'
           RISKY = ('pull_request_target', 'workflow_run')
-          repo, default = os.environ['GITHUB_REPOSITORY'], os.environ['DEFAULT_BRANCH']
+          default = os.environ['DEFAULT_BRANCH']
+          os.chdir(os.environ['PR_DIR'])
           errors = 0
 
           def report(kind, path, msg, needle=None):
@@ -107,13 +129,9 @@ jobs:
               return labels
 
           def default_copy(path):
-              url = f'https://api.github.com/repos/{repo}/contents/{path}?ref={default}'
-              req = urllib.request.Request(url, headers={
-                  'Authorization': f'Bearer {os.environ["GH_TOKEN"]}',
-                  'Accept': 'application/vnd.github.raw'})
               try:
-                  return urllib.request.urlopen(req, timeout=20).read().decode()
-              except Exception:
+                  return open(os.path.join(os.environ['DEFAULT_DIR'], path), encoding='utf-8').read()
+              except OSError:
                   return None
 
           files = sorted(glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'))
