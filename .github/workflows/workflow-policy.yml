@@ -42,9 +42,13 @@ jobs:
       - run: git config --system --add safe.directory '*'
       # The PR's content is untrusted data: only its workflow files are checked out, into a
       # subdirectory, and nothing is ever executed from there (no uv/pip config, no imports).
+      # The merge commit with the base is what GitHub runs for this PR's `pull_request` workflows
+      # (and what lands on merge), so check that, not the head: a stale branch is fine as long
+      # as merging it leaves the base clean.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: pr
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
           persist-credentials: false
           sparse-checkout: .github/workflows/
           sparse-checkout-cone-mode: false
