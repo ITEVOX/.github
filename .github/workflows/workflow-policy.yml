@@ -49,6 +49,17 @@ jobs:
         with:
           path: pr
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 2
+      # refs/pull/N/merge is mutable: fail closed unless it merges exactly this event's head.
+      - name: The merge commit is this event's head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          merged=$(git -C pr rev-parse HEAD^2)
+          if [ "$merged" != "$HEAD_SHA" ]; then
+            echo "::error::refs/pull/N/merge merges $merged, not this event's head $HEAD_SHA; re-run once GitHub recomputes it."
+            exit 1
+          fi
           persist-credentials: false
           sparse-checkout: .github/workflows/
           sparse-checkout-cone-mode: false
