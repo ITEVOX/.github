@@ -1,8 +1,27 @@
+# Branch Policy — workflow OBLIGATORIO de la org (única fuente de verdad).
+#
+# Lo exige el ruleset de la org «ITEVOX · Origen de promociones a main (workflow central)»
+# sobre `main` de todos los repos (menos este), fijado por sha. Por eso:
+#   - NO se copia a los repos: GitHub corre ESTA copia, la del sha fijado en el ruleset, no la
+#     del repo ni la de su rama default. Una copia local sería una segunda fuente de verdad
+#     (y en 2026-11-25 lo fue: 26 copias en ubuntu-latest, la mitad sólo en develop).
+#   - Cambiarlo = PR aquí + promoción a main + actualizar el sha en el ruleset.
+#
+# Política (buena práctica gitflow): a `main` no se empuja directo (lo impide el ruleset
+# «Protección de main»: PR obligatorio, sin force-push ni borrado) y sólo se promueve desde
+# ramas de integración DEL MISMO REPO:
+#   develop     promoción normal
+#   release/*   corte de versión
+#   hotfix/*    corrección urgente sobre main (luego se regresa a develop)
+# Todo lo demás (features, sync/*, renovate/*) va a develop.
+#
+# Corre en el pool self-hosted, sin checkout ni secretos: sólo lee metadatos del evento.
+# Nunca en runners de GitHub (regla de la org desde 2026-09-28).
+
 name: Branch Policy
 
 on:
-  pull_request_target:
-    branches: [main]
+  pull_request:
     types: [opened, reopened, synchronize, edited, ready_for_review]
 
 permissions: {}
@@ -10,14 +29,27 @@ permissions: {}
 jobs:
   branch-policy:
     name: Branch Policy
-    runs-on: ubuntu-latest
+    # Este repo es público: el pool self-hosted no atiende repos públicos, y aquí no aplica.
+    if: github.repository != 'ITEVOX/.github'
+    runs-on: [self-hosted, linux, x64, arch]
+    timeout-minutes: 2
     steps:
-      - name: Require a PR from this repository's develop
+      - name: Only develop, release/* or hotfix/* from this repository may target main
         env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
-          if [[ "$HEAD_REF" != develop || "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
-            echo '::error::Only develop from this repository may target main.'
+          if [[ "$BASE_REF" != main ]]; then
+            echo "Base is $BASE_REF, not main: nothing to enforce."
+            exit 0
+          fi
+          if [[ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::PRs to main must come from a branch of $GITHUB_REPOSITORY, not $HEAD_REPO."
             exit 1
           fi
+          case "$HEAD_REF" in
+            develop|release/*|hotfix/*) echo "OK: $HEAD_REF -> main" ;;
+            *) echo "::error::Only develop, release/* or hotfix/* may target main (got $HEAD_REF). Open it against develop."
+               exit 1 ;;
+          esac
