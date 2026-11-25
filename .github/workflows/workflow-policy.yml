@@ -50,6 +50,9 @@ jobs:
           path: pr
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
           fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github/workflows/
+          sparse-checkout-cone-mode: false
       # refs/pull/N/merge is mutable: fail closed unless it merges exactly this event's head.
       - name: The merge commit is this event's head
         env:
@@ -60,9 +63,6 @@ jobs:
             echo "::error::refs/pull/N/merge merges $merged, not this event's head $HEAD_SHA; re-run once GitHub recomputes it."
             exit 1
           fi
-          persist-credentials: false
-          sparse-checkout: .github/workflows/
-          sparse-checkout-cone-mode: false
       # The default branch's copy, to compare files that keep a default-branch trigger.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
