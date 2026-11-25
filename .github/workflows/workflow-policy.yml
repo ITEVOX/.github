@@ -1,0 +1,181 @@
+# Workflow Policy — ratchet OBLIGATORIO de la org sobre los workflows de cada repo.
+#
+# Lo exige el ruleset de la org «ITEVOX · Workflow Policy (workflow central)» en PRs a
+# `develop` y `main` de todos los repos (menos este), fijado por sha: corre ESTA copia, no
+# depende de la rama default del repo. Es la única fuente de verdad; no se copia a los repos.
+#
+# Falla si un workflow del PR:
+#   1. Pide un runner de GitHub (`ubuntu-*`, `windows-*`, `macos-*`), en cualquier forma:
+#      string, lista, `{labels: …}`, `${{ matrix.X }}`, el default de un input `runs-on`/`runs_on`
+#      o el valor que se le pasa a un workflow reutilizable. Regla de la org: todo va al pool
+#      self-hosted (`[self-hosted, linux, x64, arch]` o `highmem`).
+#   2. Usa `pull_request_target` o `workflow_run` sin declararlo. GitHub corre esos triggers
+#      desde la copia de la RAMA DEFAULT (`main`): un cambio que viva sólo en develop queda
+#      inerte, y si las copias de main y develop escuchan eventos distintos NO se crea ninguna
+#      corrida (2026-11-25: todos los PRs BLOCKED/REVIEW_REQUIRED con CI verde, sin error).
+#      Lo que debe funcionar en PRs a develop usa `pull_request`. Si de verdad hace falta uno de
+#      esos triggers, el archivo lleva la línea
+#          # workflow-policy: default-branch-trigger — <por qué>
+#      y el ratchet avisa (warning) mientras la copia del PR difiera de la de la rama default.
+# Avisa (warning, no falla) de jobs que sondean con sleep/setTimeout: en self-hosted ocupan un
+# slot del pool; lo correcto es auto-merge + protección de rama, no esperar al CI.
+
+name: Workflow Policy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-policy:
+    name: Workflow Policy
+    # Este repo es público: el pool self-hosted no atiende repos públicos, y aquí no aplica.
+    if: github.repository != 'ITEVOX/.github'
+    runs-on: [self-hosted, linux, x64, arch]
+    timeout-minutes: 5
+    container:
+      image: ghcr.io/itevox/ci-python:3.14@sha256:05b5c9075bdc1056907249f1e0893c777a1338f7532083b7eb60846147ddb3fe
+    steps:
+      - run: git config --system --add safe.directory '*'
+      # The PR's content is untrusted data: only its workflow files are checked out, into a
+      # subdirectory, and nothing is ever executed from there (no uv/pip config, no imports).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+          persist-credentials: false
+          sparse-checkout: .github/workflows/
+          sparse-checkout-cone-mode: false
+      # The default branch's copy, to compare files that keep a default-branch trigger.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: default
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/workflows/
+          sparse-checkout-cone-mode: false
+      - name: Install PyYAML (hash-pinned, outside the checkout)
+        working-directory: ${{ runner.temp }}
+        run: |
+          printf '%s\n' 'pyyaml==6.0.3 \' \
+            '  --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5 \' \
+            '  --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f' > req.txt
+          uv pip install --quiet --system --no-config --require-hashes --index-url https://pypi.org/simple -r req.txt
+      - name: Check workflows
+        working-directory: ${{ runner.temp }}
+        env:
+          PR_DIR: ${{ github.workspace }}/pr
+          DEFAULT_DIR: ${{ github.workspace }}/default
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          python -I - <<'PY'
+          import glob, json, os, re, sys
+          import yaml
+
+          HOSTED = re.compile(r'^(ubuntu|windows|macos)(-|$)', re.I)
+          MARK = 'workflow-policy: default-branch-trigger'
+          RISKY = ('pull_request_target', 'workflow_run')
+          default = os.environ['DEFAULT_BRANCH']
+          os.chdir(os.environ['PR_DIR'])
+          errors = 0
+
+          def report(kind, path, msg, needle=None):
+              global errors
+              line = 1
+              if needle:
+                  for i, text in enumerate(open(path, encoding='utf-8'), 1):
+                      if needle in text:
+                          line = i
+                          break
+              print(f'::{kind} file={path},line={line}::{msg}')
+              if kind == 'error':
+                  errors += 1
+
+          def as_labels(value):
+              """Every literal label a runs-on/with value can produce."""
+              if value is None:
+                  return []
+              if isinstance(value, dict):
+                  return as_labels(value.get('labels'))
+              if isinstance(value, list):
+                  return [label for item in value for label in as_labels(item)]
+              text = str(value).strip()
+              if text.startswith('['):
+                  try:
+                      return as_labels(json.loads(text))
+                  except ValueError:
+                      pass
+              return [text]
+
+          def candidates(value, job, inputs):
+              labels = []
+              for label in as_labels(value):
+                  m = re.fullmatch(r'\$\{\{\s*matrix\.([\w-]+)\s*\}\}', label)
+                  if m:
+                      matrix = (job.get('strategy') or {}).get('matrix') or {}
+                      if isinstance(matrix, dict):
+                          labels += as_labels(matrix.get(m.group(1)))
+                          for extra in matrix.get('include') or []:
+                              if isinstance(extra, dict):
+                                  labels += as_labels(extra.get(m.group(1)))
+                      continue
+                  m = re.search(r'inputs\.([\w-]+)', label)
+                  if m and '${{' in label:
+                      labels += as_labels((inputs.get(m.group(1)) or {}).get('default'))
+                      continue
+                  labels.append(label)
+              return labels
+
+          def default_copy(path):
+              try:
+                  return open(os.path.join(os.environ['DEFAULT_DIR'], path), encoding='utf-8').read()
+              except OSError:
+                  return None
+
+          files = sorted(glob.glob('.github/workflows/*.yml') + glob.glob('.github/workflows/*.yaml'))
+          for path in files:
+              text = open(path, encoding='utf-8').read()
+              try:
+                  doc = yaml.safe_load(text) or {}
+              except yaml.YAMLError as exc:
+                  report('error', path, f'YAML inválido: {exc}')
+                  continue
+              on = doc.get('on', doc.get(True)) or {}
+              events = {on} if isinstance(on, str) else set(on) if isinstance(on, (list, dict)) else set()
+              inputs = {}
+              if isinstance(on, dict):
+                  for trigger in ('workflow_call', 'workflow_dispatch'):
+                      inputs.update(((on.get(trigger) or {}).get('inputs')) or {})
+
+              for event in RISKY:
+                  if event not in events:
+                      continue
+                  if MARK not in text:
+                      report('error', path,
+                             f'`{event}` corre desde la copia de la rama default ({default}), no desde develop. '
+                             f'Usa `pull_request`, o declara la excepción con "# {MARK} — <por qué>".', event)
+                  elif text != default_copy(path):
+                      report('warning', path,
+                             f'Esta copia difiere de la de {default}: `{event}` seguirá corriendo la de {default} hasta que se promueva.', event)
+
+              for name, job in (doc.get('jobs') or {}).items():
+                  if not isinstance(job, dict):
+                      continue
+                  values = [job.get('runs-on')]
+                  values += [v for k, v in (job.get('with') or {}).items() if re.fullmatch(r'runs[-_]on', k)]
+                  for label in candidates(values, job, inputs):
+                      if HOSTED.match(label):
+                          report('error', path,
+                                 f'job `{name}` pide el runner de GitHub `{label}`. Todo corre en el pool self-hosted: '
+                                 f'[self-hosted, linux, x64, arch] (o highmem).', label)
+                  body = json.dumps(job.get('steps') or [])
+                  if 'setTimeout' in body or re.search(r'(while|until|for)\b[^"]*?\bsleep\b', body):
+                      report('warning', path,
+                             f'job `{name}` parece sondear (sleep/setTimeout): en self-hosted ocupa un slot del pool. '
+                             'Prefiere auto-merge + protección de rama.', name)
+
+          print(f'{len(files)} workflows revisados, {errors} errores.')
+          sys.exit(1 if errors else 0)
+          PY
